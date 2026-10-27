@@ -1,0 +1,7 @@
+{
+  "name": "acme-sample-device",
+  "version": "1.4.0",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "dependencies": { "clean-mit": "^1.0.0" }
+}

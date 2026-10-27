@@ -1,0 +1,5 @@
+# This action has no dependencies of its own — nothing to ignore but noise.
+# fixtures/sample-repo/node_modules IS committed on purpose: ceproof reads it,
+# so the test fixture would not scan without it.
+.DS_Store
+*.log

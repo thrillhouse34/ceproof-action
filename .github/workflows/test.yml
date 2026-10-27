@@ -1,0 +1,58 @@
+# The action testing itself. Runs the local simulation (which drives the same
+# scripts/run.sh the action runs) and then uses the action for real, both ways
+# round, against fixtures/sample-repo.
+name: test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  simulate:
+    name: simulation script
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: ./scripts/simulate.sh
+
+  action-passes:
+    name: real action, fail-on never (expect pass)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: scan
+        uses: ./
+        with:
+          path: fixtures/sample-repo
+          fail-on: never
+          artifact-name: ceproof-report-pass
+      - name: check outputs
+        run: |
+          set -e
+          [ "${{ steps.scan.outputs.outcome }}" = "pass" ]
+          [ "${{ steps.scan.outputs.total-items }}" = "21" ]
+          [ "${{ steps.scan.outputs.config-present }}" = "false" ]
+          [ "${{ steps.scan.outputs.needs-human-input-count }}" -gt 0 ]
+          test -s "${{ steps.scan.outputs.report-path }}"
+
+  action-fails:
+    name: real action, fail-on human-required (expect fail)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: scan
+        continue-on-error: true
+        uses: ./
+        with:
+          path: fixtures/sample-repo
+          fail-on: human-required
+          artifact-name: ceproof-report-fail
+      - name: check the step really failed
+        run: |
+          set -e
+          [ "${{ steps.scan.outcome }}" = "failure" ]
+          [ "${{ steps.scan.outputs.outcome }}" = "fail" ]
