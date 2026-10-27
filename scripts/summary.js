@@ -3,14 +3,19 @@
 // Renders ceproof's `scan --format json` report into the Markdown that goes to
 // $GITHUB_STEP_SUMMARY, and writes the action's key=value outputs.
 //
-//   node summary.js <report.json> <scan-exit-code> <fail-on> <outputs-file>
+//   node summary.js <report.json> <scan-exit-code> <fail-on> <outputs-file> [has-key]
+//
+// <has-key> is the string "true" when a license-key input was supplied. It only
+// suppresses the upsell block — no key material is ever passed to, or touched
+// by, this script.
 //
 // Markdown goes to stdout. No dependencies: it runs on the runner's bundled
 // node, same as the CLI.
 'use strict';
 const fs = require('fs');
 
-const [reportPath, exitCodeArg, failOn, outputsPath] = process.argv.slice(2);
+const [reportPath, exitCodeArg, failOn, outputsPath, hasKeyArg] = process.argv.slice(2);
+const hasKey = hasKeyArg === 'true';
 if (!reportPath || !outputsPath) {
   console.error('usage: summary.js <report.json> <scan-exit-code> <fail-on> <outputs-file>');
   process.exit(2);
@@ -83,6 +88,25 @@ if (r.warnings && r.warnings.length) {
   out.push('### Warnings');
   out.push('');
   for (const w of r.warnings) out.push(`- ${esc(w)}`);
+  out.push('');
+}
+
+// The upsell, shown only to people who have not already bought. Nobody wants to
+// be sold the thing they are currently using, and a paid customer seeing "get
+// the full report" in every run would read as a billing bug.
+if (!hasKey) {
+  out.push('---');
+  out.push('');
+  out.push(
+    '**Get the full report** — the Annex VII technical documentation pack and the Annex V ' +
+      'Declaration of Conformity draft, as HTML and PDF, regenerated on every release. ' +
+      'Perpetual license, no subscription: [ceproof.dev](https://ceproof.dev)',
+  );
+  out.push('');
+  out.push(
+    '<sub>Already have a key? Put it in a repository secret and pass it to this action as ' +
+      '`license-key: ${{ secrets.CEPROOF_LICENSE_KEY }}`.</sub>',
+  );
   out.push('');
 }
 

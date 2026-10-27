@@ -56,3 +56,52 @@ jobs:
           set -e
           [ "${{ steps.scan.outcome }}" = "failure" ]
           [ "${{ steps.scan.outputs.outcome }}" = "fail" ]
+
+  action-bad-key:
+    name: real action, invalid license-key (expect a clean fail, free scan intact)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: scan
+        continue-on-error: true
+        uses: ./
+        with:
+          path: fixtures/sample-repo
+          fail-on: never
+          # Deliberately not a real key. No working key exists in this repo, and
+          # none should: this proves the paid path refuses cleanly, not that it
+          # works. That it works is proven by actually buying one.
+          license-key: 'not-a-real-ceproof-key-cafef00d'
+          upload-artifact: 'false'
+      - name: the action must fail, but only on the report step
+        run: |
+          set -e
+          # The composite action failed...
+          [ "${{ steps.scan.outcome }}" = "failure" ]
+          # ...yet the FREE scan still ran, passed, and published its outputs.
+          # A bad key must not be able to corrupt or suppress the free verdict.
+          [ "${{ steps.scan.outputs.outcome }}" = "pass" ]
+          [ "${{ steps.scan.outputs.total-items }}" = "21" ]
+          test -s "${{ steps.scan.outputs.report-path }}"
+          # And no paid artifacts were claimed.
+          [ -z "${{ steps.scan.outputs.report-generated }}" ]
+          [ -z "${{ steps.scan.outputs.report-dir }}" ]
+
+  action-no-key-is-fine:
+    name: real action, license-key left empty (free path must be untouched)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: scan
+        uses: ./
+        with:
+          path: fixtures/sample-repo
+          fail-on: never
+          license-key: ''
+          upload-artifact: 'false'
+      - name: an empty key is the free scan, not an error
+        run: |
+          set -e
+          [ "${{ steps.scan.outcome }}" = "success" ]
+          [ "${{ steps.scan.outputs.outcome }}" = "pass" ]
+          [ -z "${{ steps.scan.outputs.report-generated }}" ]

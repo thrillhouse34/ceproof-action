@@ -52,6 +52,28 @@ inputs:
     required: false
     default: '0'
 
+  # ── the optional paid report ───────────────────────────────────────────────
+  # Leave license-key empty and nothing below this line runs: the free scan
+  # above is the whole action, exactly as before. A secret that is not set
+  # arrives here as an empty string, so a half-configured workflow degrades to
+  # the free scan rather than failing.
+  license-key:
+    description: 'Your paid ceproof key, to also generate the Annex VII pack and Annex V DoC draft. Pass it from a secret — license-key: ${{ secrets.CEPROOF_LICENSE_KEY }} — never as a literal. Leave empty for the free scan only.'
+    required: false
+    default: ''
+  report-formats:
+    description: 'Paid report formats to generate, comma-separated: annex7, annex7-pdf, doc, doc-pdf, sbom-cyclonedx, sbom-spdx. Only used when license-key is set.'
+    required: false
+    default: 'annex7,annex7-pdf,doc,doc-pdf,sbom-cyclonedx,sbom-spdx'
+  report-out:
+    description: 'Directory for the paid report artifacts. Defaults to a directory under the runner temp dir, so your checkout stays clean.'
+    required: false
+    default: ''
+  report-artifact-name:
+    description: 'Name of the uploaded paid-report artifact. Kept separate from artifact-name so the free report and the paid pack download independently.'
+    required: false
+    default: 'ceproof-full-report'
+
 outputs:
   outcome:
     description: 'pass or fail — whether the scan tripped the fail-on threshold.'
@@ -80,6 +102,12 @@ outputs:
   summary-path:
     description: 'Absolute path to the Markdown summary.'
     value: ${{ steps.scan.outputs.summary-path }}
+  report-generated:
+    description: 'true when the paid report was generated. Empty when no license-key was supplied.'
+    value: ${{ steps.report.outputs.report-generated }}
+  report-dir:
+    description: 'Absolute path to the directory holding the paid report artifacts. Empty when no license-key was supplied.'
+    value: ${{ steps.report.outputs.report-dir }}
 
 runs:
   using: 'composite'
@@ -98,6 +126,10 @@ runs:
         INPUT_VERSION: ${{ inputs.version }}
         INPUT_OUT: ${{ inputs.out }}
         INPUT_SUMMARY: ${{ inputs.summary }}
+        # A boolean, NOT the key. run.sh only needs to know whether to print the
+        # upsell; giving it the key would put secret material in a second place
+        # for no gain.
+        INPUT_HAS_LICENSE_KEY: ${{ inputs.license-key != '' }}
 
     # always() so the report still lands when the scan failed the job — that is
     # exactly the run you want the artifact for.
@@ -108,5 +140,40 @@ runs:
         path: |
           ${{ steps.scan.outputs.report-path }}
           ${{ steps.scan.outputs.summary-path }}
+        retention-days: ${{ inputs.artifact-retention-days }}
+        if-no-files-found: error
+
+    # ── the optional paid report ───────────────────────────────────────────────
+    #
+    # always(), for the same reason the upload above uses it: the scan step exits
+    # non-zero whenever the fail-on threshold trips, and on a fresh repo with no
+    # ceproof.config.json that is the DEFAULT outcome — every human-required item
+    # is open. Without always() the paid pack would never be generated for
+    # exactly the people who most need it. The report-path guard means a scan
+    # that died at exit 2 (bad input, no project) does not drag a second, more
+    # confusing failure behind it.
+    #
+    # The key reaches report.sh ONLY through this env block, as $CEPROOF_KEY —
+    # the runner does not log env values, and nothing passes it on a command
+    # line where `ps` could read it.
+    - id: report
+      if: ${{ always() && inputs.license-key != '' && steps.scan.outputs.report-path != '' }}
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/scripts/report.sh"
+      env:
+        CEPROOF_KEY: ${{ inputs.license-key }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_INCLUDE_DEV: ${{ inputs.include-dev }}
+        INPUT_PROJECT_LICENSE: ${{ inputs.project-license }}
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_REPORT_FORMATS: ${{ inputs.report-formats }}
+        INPUT_REPORT_OUT: ${{ inputs.report-out }}
+
+    - if: ${{ always() && inputs.upload-artifact == 'true' && steps.report.outputs.report-dir != '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.report-artifact-name }}
+        path: ${{ steps.report.outputs.report-dir }}
         retention-days: ${{ inputs.artifact-retention-days }}
         if-no-files-found: error

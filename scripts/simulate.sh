@@ -111,6 +111,112 @@ INPUT_PATH="fixtures/sample-repo" INPUT_CONFIG="$RUN_DIR/does-not-exist.json" \
 check "exit code" "$?" "2"
 if grep -q "config file not found" "$RUN_DIR/stderr.txt"; then ok "stderr names the missing config"; else fail "stderr does not explain the missing config"; fi
 
+# ── case 5: the upsell appears for someone with no key, and only for them
+echo
+echo "== case 5: upsell in the job summary (no license key) =="
+RUN_DIR="$TMP/upsell"
+mkdir -p "$RUN_DIR"
+export GITHUB_STEP_SUMMARY="$RUN_DIR/step-summary.md"
+export GITHUB_OUTPUT="$RUN_DIR/outputs.txt"
+export RUNNER_TEMP="$RUN_DIR"
+: > "$GITHUB_STEP_SUMMARY"
+: > "$GITHUB_OUTPUT"
+unset INPUT_CONFIG
+
+INPUT_PATH="fixtures/sample-repo" INPUT_FAIL_ON="never" \
+  bash "$ROOT/scripts/run.sh" > /dev/null 2>&1
+
+if grep -q "Get the full report" "$GITHUB_STEP_SUMMARY"; then ok "upsell shown without a key"; else fail "upsell missing from the job summary"; fi
+if grep -q "ceproof.dev" "$GITHUB_STEP_SUMMARY"; then ok "upsell links the existing purchase page"; else fail "upsell has no ceproof.dev link"; fi
+if grep -q "Annex V" "$GITHUB_STEP_SUMMARY"; then ok "upsell names what you actually get"; else fail "upsell does not name the deliverable"; fi
+# The upsell must not displace the disclaimer, which has to be on every surface.
+if grep -q "not a Declaration of Conformity" "$GITHUB_STEP_SUMMARY"; then ok "disclaimer still present"; else fail "the disclaimer went missing"; fi
+
+echo
+echo "== case 6: no upsell once a key is configured =="
+RUN_DIR="$TMP/no-upsell"
+mkdir -p "$RUN_DIR"
+export GITHUB_STEP_SUMMARY="$RUN_DIR/step-summary.md"
+export GITHUB_OUTPUT="$RUN_DIR/outputs.txt"
+export RUNNER_TEMP="$RUN_DIR"
+: > "$GITHUB_STEP_SUMMARY"
+: > "$GITHUB_OUTPUT"
+
+# A boolean, not a key — this is exactly what action.yml passes run.sh.
+INPUT_PATH="fixtures/sample-repo" INPUT_FAIL_ON="never" INPUT_HAS_LICENSE_KEY="true" \
+  bash "$ROOT/scripts/run.sh" > /dev/null 2>&1
+
+if grep -q "Get the full report" "$GITHUB_STEP_SUMMARY"; then fail "a paid customer was shown the upsell"; else ok "upsell suppressed with a key configured"; fi
+if grep -q "Annex VII" "$GITHUB_STEP_SUMMARY"; then ok "the rest of the summary is unchanged"; else fail "the summary lost its checklist content"; fi
+if grep -q "not a Declaration of Conformity" "$GITHUB_STEP_SUMMARY"; then ok "disclaimer still present"; else fail "the disclaimer went missing"; fi
+
+# ── case 7: the paid path refuses a bad key cleanly, and never echoes it
+echo
+echo "== case 7: paid report with an invalid key (expect exit 3, nothing written, no key leak) =="
+RUN_DIR="$TMP/badkey"
+mkdir -p "$RUN_DIR"
+export RUNNER_TEMP="$RUN_DIR"
+export GITHUB_OUTPUT="$RUN_DIR/outputs.txt"
+unset GITHUB_STEP_SUMMARY
+: > "$GITHUB_OUTPUT"
+
+# Deliberately not a real key, and not a real key's shape beyond being a
+# plausible-looking string. Nothing in this repo ever holds a working key.
+FAKE_KEY="not-a-real-ceproof-key-cafef00d"
+REPORT_OUT="$RUN_DIR/full-report"
+
+CEPROOF_KEY="$FAKE_KEY" INPUT_PATH="fixtures/sample-repo" INPUT_REPORT_OUT="$REPORT_OUT" \
+  bash "$ROOT/scripts/report.sh" > "$RUN_DIR/stdout.txt" 2> "$RUN_DIR/stderr.txt"
+RC=$?
+sed 's/^/    | /' "$RUN_DIR/stderr.txt"
+
+check "exit code" "$RC" "3"
+if grep -q "license key was not accepted" "$RUN_DIR/stderr.txt"; then ok "the refusal says what went wrong"; else fail "the refusal message is missing"; fi
+if grep -q "ceproof.dev" "$RUN_DIR/stderr.txt"; then ok "the refusal points at the purchase page"; else fail "the refusal has no purchase link"; fi
+
+# The one thing that must never happen. The ::add-mask:: line is the single
+# deliberate exception and is excluded here: that line HAS to carry the key
+# verbatim — it is how the runner learns what string to redact — and the runner
+# strips it from the visible log. Every OTHER occurrence would be a real leak.
+grep -v "^::add-mask::" "$RUN_DIR/stdout.txt" > "$RUN_DIR/stdout-unmasked.txt"
+if grep -qF "$FAKE_KEY" "$RUN_DIR/stdout-unmasked.txt" "$RUN_DIR/stderr.txt" "$GITHUB_OUTPUT" 2>/dev/null; then
+  fail "THE KEY LEAKED into stdout, stderr or \$GITHUB_OUTPUT"
+else
+  ok "the key appears nowhere but the ::add-mask:: line"
+fi
+if [ -n "$(ls -A "$REPORT_OUT" 2>/dev/null)" ]; then fail "artifacts were written despite the bad key"; else ok "nothing written on refusal"; fi
+if grep -q "^report-generated=" "$GITHUB_OUTPUT" 2>/dev/null; then fail "report-generated was set despite the refusal"; else ok "report-generated not set"; fi
+
+# The masking directive has to be the first thing the runner sees, before any
+# other line exists that could contain the key.
+if [ "$(head -1 "$RUN_DIR/stdout.txt")" = "::add-mask::$FAKE_KEY" ]; then
+  ok "::add-mask:: is emitted first, before any other output"
+else
+  fail "::add-mask:: is not the first line of stdout (got: $(head -1 "$RUN_DIR/stdout.txt"))"
+fi
+
+# ── case 8: report.sh called with no key at all is a bug, not a silent pass
+echo
+echo "== case 8: report.sh with an empty key (expect exit 2) =="
+CEPROOF_KEY="" INPUT_PATH="fixtures/sample-repo" INPUT_REPORT_OUT="$TMP/nokey-out" \
+  bash "$ROOT/scripts/report.sh" > /dev/null 2>&1
+check "exit code" "$?" "2"
+
+# ── case 9: the paid path will not render an Annex VII pack from a config path
+#            that is not there. A compliance document missing the answers it is
+#            supposed to carry is worse than no document.
+echo
+echo "== case 9: paid report with a missing --config path (expect exit 2, before any key work) =="
+RUN_DIR="$TMP/badkey-badconfig"
+mkdir -p "$RUN_DIR"
+export RUNNER_TEMP="$RUN_DIR"
+CEPROOF_KEY="$FAKE_KEY" INPUT_PATH="fixtures/sample-repo" \
+INPUT_CONFIG="$RUN_DIR/does-not-exist.json" INPUT_REPORT_OUT="$RUN_DIR/out" \
+  bash "$ROOT/scripts/report.sh" > "$RUN_DIR/stdout.txt" 2> "$RUN_DIR/stderr.txt"
+check "exit code" "$?" "2"
+if grep -q "config file not found" "$RUN_DIR/stderr.txt"; then ok "stderr names the missing config"; else fail "stderr does not explain the missing config"; fi
+if [ -n "$(ls -A "$RUN_DIR/out" 2>/dev/null)" ]; then fail "artifacts written despite the missing config"; else ok "nothing written"; fi
+
 echo
 if [ "$FAILURES" -eq 0 ]; then
   echo "ALL CHECKS PASSED"

@@ -23,10 +23,16 @@ case "$FAIL_ON" in
     ;;
 esac
 
-# ceproof treats an explicitly-given but missing --config path as "no config
-# present": no warning, no error. A typo in this input would silently discard
-# every answer you wrote and then fail the job on the items that config was
-# answering. Catch it here instead.
+# An explicitly-given --config path that is not there is caught HERE, before the
+# CLI runs, and before the paid report step is ever reached.
+#
+# Older ceproof releases (including the one pinned by default) treated such a
+# path as "no config present": no warning, no error. A typo in this input
+# silently discarded every answer you wrote and then failed the job on the very
+# items that config was answering. The CLI refuses properly now as well, so this
+# is belt and braces — kept because the `version` input lets anyone pin back to
+# a release that still has the hole, and because this message names the input
+# rather than the flag.
 if [ -n "${INPUT_CONFIG:-}" ] && [ ! -f "$INPUT_CONFIG" ]; then
   echo "ceproof-action: config file not found at '$INPUT_CONFIG' (resolved from the workspace). Fix the path, or leave the input empty to use <path>/ceproof.config.json." >&2
   exit 2
@@ -55,7 +61,10 @@ if ! node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' "$
   exit "$SCAN_RC"
 fi
 
-node "$(dirname "$0")/summary.js" "$REPORT" "$SCAN_RC" "$FAIL_ON" "$OUTPUTS" > "$SUMMARY" || exit 2
+# INPUT_HAS_LICENSE_KEY is a bare "true"/"false", never the key itself — this
+# script has no business holding key material. It only decides whether the job
+# summary carries the upsell block.
+node "$(dirname "$0")/summary.js" "$REPORT" "$SCAN_RC" "$FAIL_ON" "$OUTPUTS" "${INPUT_HAS_LICENSE_KEY:-false}" > "$SUMMARY" || exit 2
 
 cat "$SUMMARY"
 
