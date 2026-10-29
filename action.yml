@@ -30,7 +30,7 @@ inputs:
   version:
     description: 'Version of the ceproof npm package to run. Pinned by default; override only to test a newer release.'
     required: false
-    default: '0.3.3'
+    default: '0.3.4'
   out:
     description: 'Directory for report.json and summary.md. Defaults to a directory under the runner temp dir, so your checkout stays clean.'
     required: false
@@ -58,7 +58,7 @@ inputs:
   # arrives here as an empty string, so a half-configured workflow degrades to
   # the free scan rather than failing.
   license-key:
-    description: 'Your paid ceproof key, to also generate the Annex VII pack and Annex V DoC draft. Pass it from a secret — license-key: ${{ secrets.CEPROOF_LICENSE_KEY }} — never as a literal. Leave empty for the free scan only.'
+    description: 'Your paid ceproof key, to also generate the Annex VII pack and Annex V DoC draft. Pass it from a secret (secrets.CEPROOF_LICENSE_KEY), never as a literal. Leave empty for the free scan only.'
     required: false
     default: ''
   report-formats:

@@ -11,7 +11,7 @@ set -uo pipefail
 
 PROJECT_PATH="${INPUT_PATH:-.}"
 FAIL_ON="${INPUT_FAIL_ON:-human-required}"
-VERSION="${INPUT_VERSION:-0.3.3}"
+VERSION="${INPUT_VERSION:-0.3.4}"
 OUT_DIR="${INPUT_OUT:-}"
 [ -n "$OUT_DIR" ] || OUT_DIR="${RUNNER_TEMP:-/tmp}/ceproof-report"
 

@@ -33,7 +33,7 @@ if [ -z "$KEY" ]; then
 fi
 
 PROJECT_PATH="${INPUT_PATH:-.}"
-VERSION="${INPUT_VERSION:-0.3.3}"
+VERSION="${INPUT_VERSION:-0.3.4}"
 FORMATS="${INPUT_REPORT_FORMATS:-annex7,annex7-pdf,doc,doc-pdf,sbom-cyclonedx,sbom-spdx}"
 REPORT_DIR="${INPUT_REPORT_OUT:-}"
 [ -n "$REPORT_DIR" ] || REPORT_DIR="${RUNNER_TEMP:-/tmp}/ceproof-full-report"

@@ -31,6 +31,34 @@ fail() { echo "  FAIL — $1"; FAILURES=$((FAILURES + 1)); }
 check() { if [ "$2" = "$3" ]; then ok "$1 ($2)"; else fail "$1: expected '$3', got '$2'"; fi; }
 get() { grep -m1 "^$1=" "$GITHUB_OUTPUT" | cut -d= -f2-; }
 
+# ── case 0: no ${{ }} in action.yml outside runs: and outputs.*.value
+#
+# The runner evaluates the expressions in action.yml's metadata before the
+# action runs, and `secrets` is not in scope there. So a `${{ secrets.X }}`
+# written into an input description as documentation is not an example — it is
+# an expression the runner tries and cannot resolve, and the action then fails
+# to load for every user ("Unrecognized named-value: 'secrets'"). That shipped
+# once. This catches it before a commit does.
+#
+# Valid: anything under `runs:`, and the `value:` of each output. Everywhere
+# else in the file, a `${{` is a bug — quote the expression as plain text.
+echo "== case 0: action.yml has no \${{ }} outside runs: and outputs.*.value =="
+STRAY=$(awk '
+  /^outputs:/ { section = "outputs"; next }
+  /^runs:/    { section = "runs";    next }
+  section == "runs"                             { next }
+  index($0, "${{") == 0                         { next }
+  section == "outputs" && $0 ~ /^    value: /   { next }
+  { printf "%d: %s\n", NR, $0 }
+' "$ROOT/action.yml")
+if [ -z "$STRAY" ]; then
+  ok "no expressions outside runs: and outputs.*.value"
+else
+  fail "action.yml has \${{ }} where the runner cannot evaluate it:"
+  echo "$STRAY" | sed 's/^/         /'
+fi
+echo
+
 # ── case 1: the default fail-on human-required, with no config answering anything
 echo "== case 1: fail-on human-required, no config (expect the job to fail) =="
 RUN_DIR="$TMP/human"
