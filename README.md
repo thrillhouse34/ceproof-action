@@ -260,6 +260,38 @@ The action exits with the CLI's own code, so the job status follows it:
 
 A failing scan still produces the artifact. That's the run you want it for.
 
+## Not on GitHub Actions?
+
+This action is only a thin wrapper around the published CLI, so the same checks
+run anywhere Node 22 runs — no action needed.
+
+### GitLab CI
+
+```yaml
+ceproof:
+  image: node:22
+  stage: test
+  script:
+    - npm ci
+    - npx --yes ceproof@0.3.5 scan . --fail-on never
+    - npx --yes ceproof@0.3.5 report . --format sbom-cyclonedx,sbom-spdx --out ceproof-reports
+  artifacts:
+    paths: [ceproof-reports/]
+# Paid packs: add a masked CI/CD variable CEPROOF_KEY and append annex7,doc to --format.
+```
+
+### Plain CLI
+
+```bash
+npx ceproof scan                                  # gap checklist; exit 1 while human-required items remain (default --fail-on human-required)
+npx ceproof init                                  # answer the items a scan can't infer
+npx ceproof report --format sbom-cyclonedx,sbom-spdx --out sbom   # free SBOMs
+CEPROOF_KEY=... npx ceproof report --format annex7,annex7-pdf,doc,doc-pdf --out cra   # paid
+```
+
+The exit codes are the same ones in the table above, so any runner can gate on
+them the way this action does.
+
 ## Notes
 
 - Scanning is fully offline. The only network call is `npx` fetching the pinned `ceproof`
@@ -328,4 +360,4 @@ comes from the repository name. The README's usage examples stay correct.
 
 ## License
 
-Elastic License 2.0 — see [LICENSE](LICENSE). Source-available, not open source.
+Source-available under the Elastic License 2.0 (SPDX: `Elastic-2.0`). See [LICENSE](LICENSE).
