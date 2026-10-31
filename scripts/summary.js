@@ -97,12 +97,13 @@ if (r.warnings && r.warnings.length) {
 if (!hasKey) {
   out.push('---');
   out.push('');
-  // The price and the sample URL are the ones on ceproof.dev ($99 Individual,
-  // /report-sample). They are quoted in README.md too — change both together.
+  // The prices and the sample URL are the ones on ceproof.dev ($99 Individual,
+  // $299 Agency, /report-sample). They are quoted in README.md too — change both
+  // together.
   out.push(
     '**Get the full report** — the Annex VII technical documentation pack and the Annex V ' +
       'Declaration of Conformity draft, as HTML and PDF, regenerated on every release. ' +
-      '**$99 one-time**, perpetual license, no subscription — ' +
+      'From **$99 one-time** (agency $299), perpetual license, no subscription — ' +
       '[look at a finished pack](https://ceproof.dev/report-sample) · ' +
       '[ceproof.dev](https://ceproof.dev)',
   );
