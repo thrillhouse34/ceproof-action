@@ -157,6 +157,11 @@ INPUT_PATH="fixtures/sample-repo" INPUT_FAIL_ON="never" \
 if grep -q "Get the full report" "$GITHUB_STEP_SUMMARY"; then ok "upsell shown without a key"; else fail "upsell missing from the job summary"; fi
 if grep -q "ceproof.dev" "$GITHUB_STEP_SUMMARY"; then ok "upsell links the existing purchase page"; else fail "upsell has no ceproof.dev link"; fi
 if grep -q "Annex V" "$GITHUB_STEP_SUMMARY"; then ok "upsell names what you actually get"; else fail "upsell does not name the deliverable"; fi
+# Price and sample link: the two things that turn "there is a paid tier" into a
+# decision someone can actually make from the job summary. -F, because '$99'
+# would otherwise be a positional-parameter expansion away from matching "9".
+if grep -qF '$99' "$GITHUB_STEP_SUMMARY"; then ok "upsell quotes the price"; else fail "upsell does not name the price"; fi
+if grep -qF 'https://ceproof.dev/report-sample' "$GITHUB_STEP_SUMMARY"; then ok "upsell links the sample pack"; else fail "upsell has no sample-pack link"; fi
 # The upsell must not displace the disclaimer, which has to be on every surface.
 if grep -q "not a Declaration of Conformity" "$GITHUB_STEP_SUMMARY"; then ok "disclaimer still present"; else fail "the disclaimer went missing"; fi
 

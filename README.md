@@ -3,6 +3,10 @@
 Derive an EU Cyber Resilience Act compliance posture from your repo — offline, and
 honest about what it cannot know.
 
+**Free** to scan and to see the gap checklist. The Annex VII technical documentation pack
+and the Annex V Declaration of Conformity draft are **$99 one-time** — perpetual license,
+no subscription. [Look at a finished pack &rarr;](https://ceproof.dev/report-sample)
+
 This action runs the [`ceproof`](https://www.npmjs.com/package/ceproof) CLI against your
 checked-out repository, writes the Annex VII / Annex V gap checklist to the job summary,
 uploads it as a build artifact, and fails the job while items are still unanswered.
