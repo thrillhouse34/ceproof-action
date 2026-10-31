@@ -30,7 +30,7 @@ inputs:
   version:
     description: 'Version of the ceproof npm package to run. Pinned by default; override only to test a newer release.'
     required: false
-    default: '0.3.4'
+    default: '0.3.5'
   out:
     description: 'Directory for report.json and summary.md. Defaults to a directory under the runner temp dir, so your checkout stays clean.'
     required: false

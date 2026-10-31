@@ -8,7 +8,7 @@ checked-out repository, writes the Annex VII / Annex V gap checklist to the job 
 uploads it as a build artifact, and fails the job while items are still unanswered.
 
 It is a **composite** action: `ceproof` is already published to npm, so the action is a
-thin wrapper that `npx`-runs a pinned version (`0.3.4`). No bundled `node_modules` to
+thin wrapper that `npx`-runs a pinned version (`0.3.5`). No bundled `node_modules` to
 keep in sync, and the thing the action runs is byte-for-byte the release you can run
 locally yourself.
 
@@ -49,7 +49,7 @@ The human-required items are answered in `ceproof.config.json`, which lives in y
 repo. Create it once, locally:
 
 ```sh
-npx ceproof@0.3.4 init
+npx ceproof@0.3.5 init
 ```
 
 Fill it in, commit it, and those items move from `NEEDS-HUMAN-INPUT` to `DERIVED` on the
@@ -108,7 +108,7 @@ Never paste the key in as a literal — always a secret. See
 | `config` | _(empty)_ | Path to `ceproof.config.json`, relative to the workspace. Defaults to `<path>/ceproof.config.json`. A path that does not exist is an error, not a silent fallback — see [Notes](#notes). |
 | `include-dev` | `false` | `true` to include `devDependencies` in the dependency facts. |
 | `project-license` | _(empty)_ | SPDX id or expression for your own project, overriding `package.json`. |
-| `version` | `0.3.4` | Version of the `ceproof` npm package to run. Pinned; override only to try a newer release. |
+| `version` | `0.3.5` | Version of the `ceproof` npm package to run. Pinned; override only to try a newer release. |
 | `out` | _(empty)_ | Directory for `report.json` and `summary.md`. Defaults to a directory under the runner temp dir, so your checkout stays clean. |
 | `summary` | `true` | `false` to skip writing to the job summary. |
 | `upload-artifact` | `true` | `false` to skip the artifact upload. |
@@ -335,7 +335,7 @@ default, `scripts/run.sh`'s fallback, `scripts/report.sh`'s fallback, and this
 README (three times). Don't edit them by hand:
 
 ```sh
-./scripts/bump.sh 0.3.4
+./scripts/bump.sh 0.3.5
 ```
 
 It reads the current version out of `action.yml` (the single source of truth),
