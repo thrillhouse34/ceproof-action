@@ -23,12 +23,26 @@ set -uo pipefail
 
 KEY="${CEPROOF_KEY:-}"
 
+# Trim surrounding whitespace, CR and LF off the key ONCE, here, before anything
+# else touches it. A secret pasted into the GitHub UI with a trailing newline is
+# ordinary, and an untrimmed one poisons every later step: the CLI rejects it,
+# and worse, the leak tripwire at the bottom hands `grep -F` a pattern with an
+# embedded newline, which grep reads as a second, EMPTY pattern — that matches
+# every file, so the action refuses to upload a report that leaked nothing.
+# Pure parameter expansion on purpose: no subshell, no pipe, nothing that could
+# put the key on a command line or in a log.
+KEY="${KEY#"${KEY%%[![:space:]]*}"}"
+KEY="${KEY%"${KEY##*[![:space:]]}"}"
+
 # First line out of this script, before any other output exists to leak into.
-# Masking an empty string is both pointless and an error, hence the guard.
+# Masking an empty string is both pointless and an error, hence the guard. The
+# trimmed value is the right thing to mask even if the raw secret had padding:
+# the runner redacts any line CONTAINING the masked string, so the padded form
+# is covered too.
 [ -n "$KEY" ] && echo "::add-mask::$KEY"
 
 if [ -z "$KEY" ]; then
-  echo "ceproof-action: report.sh ran with no license key. This is a bug in the action — action.yml should have skipped this step." >&2
+  echo "ceproof-action: report.sh ran with no license key — the license-key input was empty or nothing but whitespace. If the secret really is set, check it for stray whitespace; otherwise this is a bug in the action, as action.yml should have skipped this step." >&2
   exit 2
 fi
 
@@ -86,7 +100,9 @@ fi
 # stamp the key (or a licenseId derived from it) into a report footer would
 # otherwise publish it to every artifact downloader, silently. grep -r reads the
 # PDFs as binary too, which is exactly what we want.
-if grep -rqF -- "$KEY" "$REPORT_DIR" 2>/dev/null; then
+# The -n guard is belt and braces: an empty pattern matches every file, and the
+# only thing stopping an empty $KEY from reaching here today is the exit above.
+if [ -n "$KEY" ] && grep -rqF -- "$KEY" "$REPORT_DIR" 2>/dev/null; then
   echo "ceproof-action: REFUSING TO UPLOAD — the license key appears inside a generated report artifact in $REPORT_DIR. This is a bug; please report it at https://github.com/thrillhouse34/ceproof-action/issues (do not attach the artifact)." >&2
   exit 2
 fi

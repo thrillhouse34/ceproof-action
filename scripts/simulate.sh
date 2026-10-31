@@ -245,6 +245,93 @@ check "exit code" "$?" "2"
 if grep -q "config file not found" "$RUN_DIR/stderr.txt"; then ok "stderr names the missing config"; else fail "stderr does not explain the missing config"; fi
 if [ -n "$(ls -A "$RUN_DIR/out" 2>/dev/null)" ]; then fail "artifacts written despite the missing config"; else ok "nothing written"; fi
 
+# ── case 10: a key with surrounding whitespace must not trip the leak tripwire
+#
+# This is the one place the test has to fake the CLI. Every case above stops at
+# the CLI's own refusal (exit 3) and so never reaches the code that runs AFTER a
+# successful render — which is exactly where the trailing-newline bug lived: the
+# leak check handed `grep -F` a pattern with an embedded newline, grep read that
+# as a second EMPTY pattern, the empty pattern matched the freshly written
+# report, and the action refused to upload with exit 2 having leaked nothing.
+# A stub `npx` first on $PATH renders a plausible artifact, exits 0, and records
+# the key it was handed, so this can assert both the trim and the upload path.
+# What it cannot prove is that the real CLI accepts the key; the real-key E2E
+# does that.
+STUB_BIN="$TMP/fake-bin"
+mkdir -p "$STUB_BIN"
+cat > "$STUB_BIN/npx" <<'STUB'
+#!/usr/bin/env bash
+OUT=""
+while [ $# -gt 0 ]; do
+  if [ "$1" = "--out" ]; then OUT="$2"; shift 2; continue; fi
+  shift
+done
+[ -n "$OUT" ] || { echo "fake npx: no --out in the args" >&2; exit 64; }
+mkdir -p "$OUT" || exit 64
+printf 'fake report body, no key anywhere in it\n' > "$OUT/report.html"
+# Byte for byte, so the caller can see any whitespace that survived the trim.
+printf '%s' "${CEPROOF_KEY:-}" > "$FAKE_NPX_KEY_FILE"
+exit 0
+STUB
+chmod +x "$STUB_BIN/npx"
+
+echo
+echo "== case 10: key with a trailing newline / CRLF (expect the paid path to proceed) =="
+unset INPUT_CONFIG
+IDX=0
+for PADDED in "$FAKE_KEY"$'\n' "$FAKE_KEY"$'\r\n' $'  \t'"$FAKE_KEY"$'  \r\n'; do
+  IDX=$((IDX + 1))
+  case $IDX in
+    1) LABEL="trailing LF" ;;
+    2) LABEL="trailing CRLF" ;;
+    3) LABEL="padded both ends" ;;
+  esac
+  RUN_DIR="$TMP/padded-$IDX"
+  mkdir -p "$RUN_DIR"
+  export RUNNER_TEMP="$RUN_DIR"
+  export GITHUB_OUTPUT="$RUN_DIR/outputs.txt"
+  export FAKE_NPX_KEY_FILE="$RUN_DIR/key-the-cli-saw.txt"
+  : > "$GITHUB_OUTPUT"
+  : > "$FAKE_NPX_KEY_FILE"
+  REPORT_OUT="$RUN_DIR/full-report"
+
+  PATH="$STUB_BIN:$PATH" CEPROOF_KEY="$PADDED" INPUT_PATH="fixtures/sample-repo" \
+  INPUT_REPORT_OUT="$REPORT_OUT" \
+    bash "$ROOT/scripts/report.sh" > "$RUN_DIR/stdout.txt" 2> "$RUN_DIR/stderr.txt"
+  RC=$?
+  sed 's/^/    | /' "$RUN_DIR/stderr.txt"
+
+  check "$LABEL: exit code" "$RC" "0"
+  check "$LABEL: report-generated output" "$(get report-generated)" "true"
+  if grep -q "REFUSING TO UPLOAD" "$RUN_DIR/stderr.txt"; then
+    fail "$LABEL: the leak tripwire fired on a report that contains no key"
+  else
+    ok "$LABEL: no false leak refusal"
+  fi
+  # The CLI must get the trimmed key, byte for byte — $(cat) alone would hide a
+  # trailing newline, so the length is checked too.
+  SEEN_BYTES=$(wc -c < "$FAKE_NPX_KEY_FILE" | tr -d ' ')
+  if [ "$(cat "$FAKE_NPX_KEY_FILE")" = "$FAKE_KEY" ] && [ "$SEEN_BYTES" = "${#FAKE_KEY}" ]; then
+    ok "$LABEL: the CLI was handed the trimmed key ($SEEN_BYTES bytes)"
+  else
+    fail "$LABEL: the CLI was handed $SEEN_BYTES bytes, expected ${#FAKE_KEY}"
+  fi
+  check "$LABEL: ::add-mask:: carries the trimmed key" "$(head -1 "$RUN_DIR/stdout.txt")" "::add-mask::$FAKE_KEY"
+done
+
+# ── case 11: a key that is nothing but whitespace is no key at all
+echo
+echo "== case 11: whitespace-only key (expect exit 2, and no empty ::add-mask::) =="
+RUN_DIR="$TMP/ws-only"
+mkdir -p "$RUN_DIR"
+export RUNNER_TEMP="$RUN_DIR"
+CEPROOF_KEY=$' \r\n\t ' INPUT_PATH="fixtures/sample-repo" INPUT_REPORT_OUT="$RUN_DIR/out" \
+  bash "$ROOT/scripts/report.sh" > "$RUN_DIR/stdout.txt" 2> "$RUN_DIR/stderr.txt"
+check "exit code" "$?" "2"
+if grep -q "no license key" "$RUN_DIR/stderr.txt"; then ok "stderr says the key was empty or whitespace"; else fail "stderr does not explain the empty key"; fi
+if grep -q "^::add-mask::" "$RUN_DIR/stdout.txt"; then fail "masked a whitespace-only string"; else ok "nothing masked"; fi
+if [ -n "$(ls -A "$RUN_DIR/out" 2>/dev/null)" ]; then fail "artifacts written for a whitespace-only key"; else ok "nothing written"; fi
+
 echo
 if [ "$FAILURES" -eq 0 ]; then
   echo "ALL CHECKS PASSED"
