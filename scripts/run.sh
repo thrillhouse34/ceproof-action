@@ -10,10 +10,37 @@
 set -uo pipefail
 
 PROJECT_PATH="${INPUT_PATH:-.}"
-FAIL_ON="${INPUT_FAIL_ON:-human-required}"
-VERSION="${INPUT_VERSION:-0.3.5}"
+VERSION="${INPUT_VERSION:-0.4.0}"
 OUT_DIR="${INPUT_OUT:-}"
 [ -n "$OUT_DIR" ] || OUT_DIR="${RUNNER_TEMP:-/tmp}/ceproof-report"
+
+FDA="${INPUT_FDA:-false}"
+case "$FDA" in
+  true|false) ;;
+  *)
+    echo "ceproof-action: fda must be true or false (got '$FDA')" >&2
+    exit 2
+    ;;
+esac
+
+# --fail-on's default is resolved HERE, per profile, exactly the way the CLI
+# resolves it (DEFAULT_FAIL_ON in ceproof's src/cli/scan.ts): human-required for
+# the CRA scan, never — report-only, exit 0 — for fda. So action.yml leaves the
+# input EMPTY rather than defaulting it to human-required.
+#
+# Why that matters: three of the FDA profile's thirteen items can only ever be
+# answered by a human, so human-required fails every FDA run forever no matter
+# how complete the SBOM. An input default of human-required would hand everyone
+# who flips `fda: true` a red build on a flawless run, which is how people learn
+# to stop reading exit codes. Failing a build on the FDA profile is opt-in.
+#
+# Nothing about the CRA path moves: with fda off and fail-on untouched this
+# still resolves to human-required and still passes it to the CLI explicitly,
+# which is byte-for-byte what it did before.
+FAIL_ON="${INPUT_FAIL_ON:-}"
+if [ -z "$FAIL_ON" ]; then
+  if [ "$FDA" = "true" ]; then FAIL_ON='never'; else FAIL_ON='human-required'; fi
+fi
 
 case "$FAIL_ON" in
   human-required|partial|never) ;;
@@ -22,6 +49,33 @@ case "$FAIL_ON" in
     exit 2
     ;;
 esac
+
+# --sbom paths, one per line or comma-separated. Checked for existence here, for
+# the same reason the config path below is: a missing SBOM would leave the FDA
+# view reporting on whatever a repo scan happened to find, which for device
+# firmware is nothing at all, and the run would look like it worked.
+SBOM_ARGS=()
+if [ -n "${INPUT_FDA_SBOM:-}" ]; then
+  if [ "$FDA" != "true" ]; then
+    echo "ceproof-action: fda-sbom is only read when fda: true, so the file(s) would have been ignored. Set fda: true, or drop fda-sbom." >&2
+    exit 2
+  fi
+  while IFS= read -r sbom_path; do
+    sbom_path="$(printf '%s' "$sbom_path" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [ -n "$sbom_path" ] || continue
+    if [ ! -f "$sbom_path" ]; then
+      echo "ceproof-action: SBOM file not found at '$sbom_path' (resolved from the workspace). Fix the path in fda-sbom, or drop the input." >&2
+      exit 2
+    fi
+    SBOM_ARGS+=(--sbom "$sbom_path")
+  done <<EOF
+$(printf '%s' "$INPUT_FDA_SBOM" | tr ',' '\n')
+EOF
+  if [ "${#SBOM_ARGS[@]}" -eq 0 ]; then
+    echo "ceproof-action: fda-sbom was set but held no path (only whitespace or commas). Give it a file, or leave it empty." >&2
+    exit 2
+  fi
+fi
 
 # An explicitly-given --config path that is not there is caught HERE, before the
 # CLI runs, and before the paid report step is ever reached.
@@ -44,6 +98,8 @@ SUMMARY="$OUT_DIR/summary.md"
 OUTPUTS="$OUT_DIR/outputs.txt"
 
 args=(scan "$PROJECT_PATH" --format json --fail-on "$FAIL_ON" --no-color)
+[ "$FDA" = "true" ] && args+=(--profile fda)
+[ "${#SBOM_ARGS[@]}" -gt 0 ] && args+=("${SBOM_ARGS[@]}")
 [ "${INPUT_INCLUDE_DEV:-false}" = "true" ] && args+=(--include-dev)
 [ -n "${INPUT_CONFIG:-}" ] && args+=(--config "$INPUT_CONFIG")
 [ -n "${INPUT_PROJECT_LICENSE:-}" ] && args+=(--project-license "$INPUT_PROJECT_LICENSE")

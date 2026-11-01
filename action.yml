@@ -12,9 +12,9 @@ inputs:
     required: false
     default: '.'
   fail-on:
-    description: 'When to fail the job: human-required (default), partial, or never.'
+    description: 'When to fail the job: human-required, partial, or never. Left empty it follows the CLI, which defaults PER PROFILE: human-required for the CRA scan (unchanged), never (report-only) for fda. Set it explicitly to fail a build on either profile.'
     required: false
-    default: 'human-required'
+    default: ''
   config:
     description: 'Path to ceproof.config.json, where your answers to the human-required items live. Defaults to <path>/ceproof.config.json. Generate one with `npx ceproof init`.'
     required: false
@@ -30,7 +30,7 @@ inputs:
   version:
     description: 'Version of the ceproof npm package to run. Pinned by default; override only to test a newer release.'
     required: false
-    default: '0.3.5'
+    default: '0.4.0'
   out:
     description: 'Directory for report.json and summary.md. Defaults to a directory under the runner temp dir, so your checkout stays clean.'
     required: false
@@ -51,6 +51,21 @@ inputs:
     description: 'Days before the uploaded artifact expires. 0 uses the repository default, which is what actions/upload-artifact documents for this value.'
     required: false
     default: '0'
+
+  # ── the FDA premarket SBOM profile (free, off by default) ──────────────────
+  # Off is the default, and off is the behaviour this action has always had:
+  # leave `fda` alone and it runs the CRA scan it always ran, with the same
+  # flags and the same exit code. Turning it on swaps which gap view is
+  # computed and nothing else — the FDA profile is free, needs no key, writes
+  # no file of its own and makes no network call.
+  fda:
+    description: 'Set to true to compute the FDA premarket SBOM content view instead of the EU CRA one. Free, needs no license key. Off by default. REPORT-ONLY: it will not fail the job unless you set fail-on yourself.'
+    required: false
+    default: 'false'
+  fda-sbom:
+    description: 'CycloneDX JSON SBOM files (spec 1.4-1.6) to import, one per line or comma-separated. Only read when fda is true; setting it with fda off is an error rather than a silent no-op. This is how device firmware, which has no lockfile to scan, gets its components in.'
+    required: false
+    default: ''
 
   # ── the optional paid report ───────────────────────────────────────────────
   # Leave license-key empty and nothing below this line runs: the free scan
@@ -79,7 +94,7 @@ outputs:
     description: 'pass or fail — whether the scan tripped the fail-on threshold.'
     value: ${{ steps.scan.outputs.outcome }}
   total-items:
-    description: 'Number of CRA checklist items evaluated (Annex VII and Annex V).'
+    description: 'Number of checklist items evaluated: 21 CRA items (Annex VII and Annex V), or the 13 FDA content items when fda is true.'
     value: ${{ steps.scan.outputs.total-items }}
   derived-count:
     description: 'Items fully derived from evidence in the repo.'
@@ -91,10 +106,10 @@ outputs:
     description: 'Items that need an answer from you — no evidence can supply them.'
     value: ${{ steps.scan.outputs.needs-human-input-count }}
   config-present:
-    description: 'true when a ceproof.config.json was found.'
+    description: 'true when a ceproof.config.json was found. unknown on the FDA profile, whose JSON report carries no config status — the file is still read for fda.componentSupport, but guessing false would be a wrong answer rather than no answer.'
     value: ${{ steps.scan.outputs.config-present }}
   config-valid:
-    description: 'true, false, or unknown when there is no config to validate.'
+    description: 'true, false, or unknown when there is no config to validate. Always unknown on the FDA profile — see config-present.'
     value: ${{ steps.scan.outputs.config-valid }}
   report-path:
     description: 'Absolute path to the machine-readable report.json.'
@@ -126,6 +141,8 @@ runs:
         INPUT_VERSION: ${{ inputs.version }}
         INPUT_OUT: ${{ inputs.out }}
         INPUT_SUMMARY: ${{ inputs.summary }}
+        INPUT_FDA: ${{ inputs.fda }}
+        INPUT_FDA_SBOM: ${{ inputs.fda-sbom }}
         # A boolean, NOT the key. run.sh only needs to know whether to print the
         # upsell; giving it the key would put secret material in a second place
         # for no gain.

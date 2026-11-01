@@ -12,7 +12,7 @@ checked-out repository, writes the Annex VII / Annex V gap checklist to the job 
 uploads it as a build artifact, and fails the job while items are still unanswered.
 
 It is a **composite** action: `ceproof` is already published to npm, so the action is a
-thin wrapper that `npx`-runs a pinned version (`0.3.5`). No bundled `node_modules` to
+thin wrapper that `npx`-runs a pinned version (`0.4.0`). No bundled `node_modules` to
 keep in sync, and the thing the action runs is byte-for-byte the release you can run
 locally yourself.
 
@@ -53,7 +53,7 @@ The human-required items are answered in `ceproof.config.json`, which lives in y
 repo. Create it once, locally:
 
 ```sh
-npx ceproof@0.3.5 init
+npx ceproof@0.4.0 init
 ```
 
 Fill it in, commit it, and those items move from `NEEDS-HUMAN-INPUT` to `DERIVED` on the
@@ -108,11 +108,11 @@ Never paste the key in as a literal — always a secret. See
 | Input | Default | Description |
 |---|---|---|
 | `path` | `.` | Project path to scan, relative to the workspace. |
-| `fail-on` | `human-required` | When to fail the job: `human-required`, `partial`, or `never`. Any other value is rejected with exit 2 rather than silently defaulted. |
+| `fail-on` | _(empty)_ | When to fail the job: `human-required`, `partial`, or `never`. Left empty it follows the CLI's own per-profile default: `human-required` for the CRA scan, `never` (report-only) for `fda`. Any other value is rejected with exit 2 rather than silently defaulted. |
 | `config` | _(empty)_ | Path to `ceproof.config.json`, relative to the workspace. Defaults to `<path>/ceproof.config.json`. A path that does not exist is an error, not a silent fallback — see [Notes](#notes). |
 | `include-dev` | `false` | `true` to include `devDependencies` in the dependency facts. |
 | `project-license` | _(empty)_ | SPDX id or expression for your own project, overriding `package.json`. |
-| `version` | `0.3.5` | Version of the `ceproof` npm package to run. Pinned; override only to try a newer release. |
+| `version` | `0.4.0` | Version of the `ceproof` npm package to run. Pinned; override only to try a newer release. |
 | `out` | _(empty)_ | Directory for `report.json` and `summary.md`. Defaults to a directory under the runner temp dir, so your checkout stays clean. |
 | `summary` | `true` | `false` to skip writing to the job summary. |
 | `upload-artifact` | `true` | `false` to skip the artifact upload. |
@@ -122,17 +122,69 @@ Never paste the key in as a literal — always a secret. See
 | `report-formats` | `annex7,annex7-pdf,doc,doc-pdf,sbom-cyclonedx,sbom-spdx` | Paid report formats to generate, comma-separated. Only read when `license-key` is set. |
 | `report-out` | _(empty)_ | Directory for the paid report artifacts. Defaults to a directory under the runner temp dir. |
 | `report-artifact-name` | `ceproof-full-report` | Name of the uploaded paid-report artifact. Separate from `artifact-name` so the free report and the paid pack download independently. |
+| `fda` | `false` | `true` to compute the **FDA premarket SBOM** content view instead of the EU CRA one. Free, needs no key. Off is the default and off is the behaviour this action has always had. See [FDA mode](#fda-mode). |
+| `fda-sbom` | _(empty)_ | CycloneDX JSON SBOM files (spec 1.4–1.6) to import, one per line or comma-separated. Only read when `fda: true`; setting it with `fda` off is an error, not a silent no-op. |
+
+## FDA mode
+
+`fda: true` swaps which gap view the free scan computes: instead of the 21 EU CRA items
+(Annex VII and Annex V), it resolves the 13 content items in FDA's February 3, 2026
+premarket cybersecurity guidance. It is free, needs no license key, writes no file of its
+own and makes no network call — the same as the CRA scan.
+
+**It is report-only.** Leave `fail-on` alone and the job exits 0 no matter what the scan
+finds. That is deliberate and it is the CLI's own default: three of the thirteen items —
+the safety and security risk assessment, the risk controls and the cyber-device
+determination — can only ever be answered by a human, so a threshold of `human-required`
+would fail every run forever no matter how complete your SBOM. An exit code that is red
+on a flawless run is not a signal. To fail a build on this profile, ask for it:
+
+```yaml
+- uses: thrillhouse34/ceproof-action@v1
+  with:
+    fda: true
+    fda-sbom: firmware.cdx.json
+    fail-on: partial        # opt in, explicitly
+```
+
+**Bring your own SBOM.** Device firmware has no lockfile to scan, so `fda-sbom` is how
+the components get in. One path per line, or comma-separated:
+
+```yaml
+- uses: thrillhouse34/ceproof-action@v1
+  with:
+    fda: true
+    fda-sbom: |
+      build/firmware.cdx.json
+      build/third-party.cdx.json
+```
+
+CycloneDX JSON, spec 1.4 to 1.6. SPDX is refused with a message saying so, not silently
+ignored. A path that does not exist is exit 2, for the same reason a missing `config` is:
+a run that reported on nothing would look like a run that found nothing.
+
+**What this action does NOT do yet.** It does not generate the paid FDA evidence pack
+(`ceproof report --format fda-pack`). `license-key` and `report-formats` still drive the
+CRA Annex VII / Annex V report only. An FDA-tier key passed to `report-formats`'
+CRA defaults will be refused with exit 3 and a message naming the tier mismatch; that is
+the CLI being correct, not a bug. Run `fda-pack` locally for now.
+
+> **What FDA mode is not.** It produces information to support *your* review of *your*
+> premarket submission. It is not an FDA submission, not regulatory advice, and has not
+> been reviewed or endorsed by FDA or by CISA. Everything you submit remains yours —
+> including the risk assessment of every vulnerability it lists and the risk controls you
+> apply.
 
 ## Outputs
 
 | Output | Description |
 |---|---|
 | `outcome` | `pass` or `fail` — whether the scan tripped the `fail-on` threshold. Written before the action exits, so pair the step with `continue-on-error: true` if you want to read it on a failing scan. |
-| `total-items` | CRA checklist items evaluated (Annex VII and Annex V together). |
+| `total-items` | Checklist items evaluated: 21 CRA items (Annex VII and Annex V together), or the 13 FDA content items when `fda: true`. |
 | `derived-count` | Items fully derived from evidence in the repo. |
 | `partial-count` | Items with some evidence, but not enough to stand alone. |
 | `needs-human-input-count` | Items that need an answer from you — no repo evidence can supply them. |
-| `config-present` | `true` when a `ceproof.config.json` was found. |
+| `config-present` | `true` when a `ceproof.config.json` was found. `unknown` when `fda: true` — the FDA report carries no config status, so a `false` there would be a wrong answer rather than no answer. |
 | `config-valid` | `true`, `false`, or `unknown` when there is no config to validate. |
 | `report-path` | Absolute path to the machine-readable `report.json`. |
 | `summary-path` | Absolute path to the Markdown summary. |
@@ -277,8 +329,8 @@ ceproof:
   stage: test
   script:
     - npm ci
-    - npx --yes ceproof@0.3.5 scan . --fail-on never
-    - npx --yes ceproof@0.3.5 report . --format sbom-cyclonedx,sbom-spdx --out ceproof-reports
+    - npx --yes ceproof@0.4.0 scan . --fail-on never
+    - npx --yes ceproof@0.4.0 report . --format sbom-cyclonedx,sbom-spdx --out ceproof-reports
   artifacts:
     paths: [ceproof-reports/]
 # Paid packs: add a masked CI/CD variable CEPROOF_KEY and append annex7,doc to --format.
@@ -339,7 +391,7 @@ default, `scripts/run.sh`'s fallback, `scripts/report.sh`'s fallback, and this
 README (three times). Don't edit them by hand:
 
 ```sh
-./scripts/bump.sh 0.3.5
+./scripts/bump.sh 0.4.0
 ```
 
 It reads the current version out of `action.yml` (the single source of truth),

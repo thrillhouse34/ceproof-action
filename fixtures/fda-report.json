@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 1,
+  "profile": "fda",
+  "toolVersion": "0.4.0",
+  "structureVersion": "FDA, \"Cybersecurity in Medical Devices: Quality Management System Considerations and Content of Premarket Submissions\", issued February 3, 2026 (supersedes June 27, 2025). Docket FDA-2021-D-1158, GUI00001825. Sections V.A.2, V.A.4(a), V.A.4(b) and VII.C.3. US Government work. Secondary source NOT vendored in this repo: the minimum elements are NTIA, \"The Minimum Elements For a Software Bill of Materials (SBOM)\", July 12, 2021 (https://www.ntia.gov/files/ntia/publications/sbom_minimum_elements_report.pdf), which FDA incorporates by reference. FDA's own sentence names a different NTIA document, \"Framing Software Component Transparency\", and dates it October 2021.",
+  "generatedAt": "2026-10-31T23:53:02.047Z",
+  "asOf": "2026-10-31",
+  "device": {
+    "name": "acme-infusion-pump-firmware",
+    "version": "4.2.1"
+  },
+  "inputs": {
+    "repoScan": "/Users/markgoldfinger/dev/Claude Projects/Micro Saas/distribution/ceproof-action/fixtures/sample-repo",
+    "sboms": [
+      {
+        "sourceLabel": "sample-sbom.cdx.json",
+        "specVersion": "1.6",
+        "sha256": "adb69d205b56a05188d79f4c55f4a7339259f5012b8c5ac853863df017db58ff",
+        "componentCount": 3
+      }
+    ]
+  },
+  "fdaData": {
+    "eolSnapshotGeneratedAt": "2026-10-31T13:22:44+00:00",
+    "eolSnapshotSha256": "5a9ad6471f927b36a577a42f521b40d84e60d110fd4ed01dab403edf1cbdbb01",
+    "kevCatalogVersion": "2026.10.30",
+    "kevSnapshotReleased": "2026-10-30T17:02:45.3665Z",
+    "osvQueriedAt": "2026-10-31T19:57:07.159Z"
+  },
+  "counts": {
+    "components": 4,
+    "withVersion": 4,
+    "withIdentifier": 4,
+    "withSupplier": 2,
+    "withLicense": 4,
+    "withHash": 1,
+    "inDependencyGraph": 3,
+    "supportDeclared": 0,
+    "supportUnknown": 3,
+    "endOfSupportDates": 1,
+    "endOfSupportPassed": 1,
+    "confirmed": 0,
+    "possible": 1,
+    "notAffected": 0,
+    "ransomware": 0,
+    "openItems": 7
+  },
+  "summary": {
+    "totalItems": 13,
+    "derived": 4,
+    "partial": 4,
+    "needsHumanInput": 5
+  },
+  "items": [
+    {
+      "id": "fda.sbom.provided",
+      "measure": "sbom-provided",
+      "status": "DERIVED",
+      "requirementSummary": "A machine-readable SBOM is provided, covering both the manufacturer's own software components and third-party components (purchased, licensed and open-source), including upstream dependencies.",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section V.A.4(a), p. 16",
+      "evidence": [
+        "4 components, from 2 sources: sbom:sample-sbom.cdx.json, scan",
+        "Whether that list is COMPLETE is yours to confirm: this tool reports what its inputs contained and cannot know what a source left out."
+      ]
+    },
+    {
+      "id": "fda.sbom.ntia-minimum-elements",
+      "measure": "ntia-minimum-elements",
+      "status": "PARTIAL",
+      "requirementSummary": "The SBOM is machine-readable and consistent with the NTIA minimum elements (\"baseline attributes\"), published July 12, 2021 and incorporated by FDA by reference.",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section V.A.4(b), p. 17, which incorporates the NTIA minimum elements by reference. Those elements are NTIA, \"The Minimum Elements For a Software Bill of Materials (SBOM)\", July 12, 2021; FDA's sentence names NTIA's \"Framing Software Component Transparency\" and dates it October 2021",
+      "evidence": [
+        "component name: all 4",
+        "version: all 4",
+        "supplier name: 2 of 4",
+        "other unique identifiers (purl or CPE): all 4",
+        "dependency relationship (in the source SBOM graph): 3 of 4",
+        "author of SBOM data: NOT named. Set manufacturer.name in ceproof.config.json; this tool will not name itself as the author of your SBOM.",
+        "timestamp: stamped on the document at generation",
+        "component hash (not an NTIA minimum element; CISA 2026 asks for it): 1 of 4",
+        "component licence (same): all 4"
+      ]
+    },
+    {
+      "id": "fda.sbom.format",
+      "measure": "support-placement",
+      "status": "DERIVED",
+      "requirementSummary": "The two per-component values beyond the NTIA minimum elements may be carried in the SBOM itself or supplied separately, for example in an addendum; an industry-accepted SBOM format is encouraged.",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section V.A.4(b), pp. 17-18",
+      "evidence": [
+        "The guidance allows the level of support and the end-of-support date either in the SBOM or separately, such as in an addendum.",
+        "The paid pack does both: as ceproof:fda:* properties on each component of the CycloneDX document, and as a human-readable addendum section plus a CSV.",
+        "This is a property of the pack's shape, not of your data, so it is DERIVED for every run."
+      ]
+    },
+    {
+      "id": "fda.support.level",
+      "measure": "support-level",
+      "status": "PARTIAL",
+      "requirementSummary": "For each software component, the level of support provided through monitoring and maintenance by that component's manufacturer (for example: actively maintained, no longer maintained, abandoned).",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section V.A.4(b), p. 17",
+      "evidence": [
+        "a level of support that is not \"unknown\": 1 of 4",
+        "declared by you, which outranks every derived value: none of 4",
+        "The bundled end-of-support data is within the freshness threshold.",
+        "A level of support is a commitment by whoever maintains the component. Where no dataset answered it, declare it under fda.componentSupport in ceproof.config.json."
+      ]
+    },
+    {
+      "id": "fda.support.end-of-support-date",
+      "measure": "end-of-support-date",
+      "status": "PARTIAL",
+      "requirementSummary": "For each software component, the component's end-of-support date.",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section V.A.4(b), p. 17",
+      "evidence": [
+        "an end-of-support date: 1 of 4",
+        "1 of that date has already passed as of 2026-10-31.",
+        "This tool never invents a date. A component with none has none here; supply it or state in your submission why the component has no end-of-support date."
+      ]
+    },
+    {
+      "id": "fda.sbom.justification-when-unavailable",
+      "measure": "unknown-justification",
+      "status": "NEEDS-HUMAN-INPUT",
+      "requirementSummary": "Where the manufacturer is unable to provide SBOM information, a justification for why it cannot be included in the premarket submission.",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section V.A.4(b), p. 17",
+      "evidence": [
+        "unknown levels of support carrying your justification: none of 3",
+        "The guidance asks for a justification where SBOM information cannot be provided. Put it in the declaration's `note` so it travels with the component into the output."
+      ]
+    },
+    {
+      "id": "fda.vuln.identify-all",
+      "measure": "all-known-vulnerabilities",
+      "status": "PARTIAL",
+      "requirementSummary": "All known vulnerabilities associated with the device and its software components are identified.",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section V.A.4(b), p. 17",
+      "evidence": [
+        "FDA asks for ALL known vulnerabilities associated with the device and its software components.",
+        "This tool screens the CISA Known Exploited Vulnerabilities Catalog only — the subset FDA names explicitly. It is not a general vulnerability database, and it never will read DERIVED here.",
+        "Screened in this run: 4 components, 0 confirmed, 1 possible, 0 screened and set aside.",
+        "Identify the rest by other means and carry them into the same table. This screen is one input to that list, not the whole of it."
+      ]
+    },
+    {
+      "id": "fda.vuln.kev",
+      "measure": "kev-screen",
+      "status": "DERIVED",
+      "requirementSummary": "The vulnerabilities identified include those in CISA's Known Exploited Vulnerabilities Catalog.",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section V.A.4(b), p. 17",
+      "evidence": [
+        "Screened against CISA KEV catalogue version 2026.10.30, released 2026-10-30, 1766 entries.",
+        "Ecosystem advisory ranges captured from OSV on 2026-10-31.",
+        "The catalogue is within the 30-day freshness threshold as of 2026-10-31.",
+        "No finding in this run is flagged by CISA as used in a known ransomware campaign."
+      ]
+    },
+    {
+      "id": "fda.vuln.how-discovered",
+      "measure": "how-discovered",
+      "status": "DERIVED",
+      "requirementSummary": "For each known vulnerability, a description of how it was discovered, demonstrating whether the assessment methods were sufficiently robust.",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section V.A.4(b), p. 17",
+      "evidence": [
+        "The single finding carries one auditable sentence naming what was matched, against which catalogue version, and why its confidence is what it is.",
+        "This covers only the vulnerabilities THIS screen found. How you discovered any others is yours to describe."
+      ]
+    },
+    {
+      "id": "fda.vuln.risk-assessment",
+      "measure": "risk-assessment",
+      "status": "NEEDS-HUMAN-INPUT",
+      "requirementSummary": "For components with known vulnerabilities, a safety and security risk assessment of each known vulnerability, including device and system impacts.",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section V.A.4(b), pp. 17-18",
+      "evidence": [
+        "A safety and security risk assessment of each known vulnerability, including device and system impacts, is one of the two things FDA asks the MANUFACTURER for.",
+        "No component scanner can produce it. This tool identifies candidates and records how each was found; the assessment column reads NEEDS-HUMAN-INPUT in every artifact until you write it.",
+        "1 finding needs one from this screen alone, plus any vulnerability you identified by other means."
+      ]
+    },
+    {
+      "id": "fda.vuln.risk-controls",
+      "measure": "risk-controls",
+      "status": "NEEDS-HUMAN-INPUT",
+      "requirementSummary": "For components with known vulnerabilities, details of the applicable safety and security risk controls, including any compensating controls, described in an appropriate level of detail.",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section V.A.4(b), p. 18",
+      "evidence": [
+        "Details of the applicable safety and security risk controls, including any compensating controls, is the second of the two things FDA asks the MANUFACTURER for.",
+        "Same reason as the risk assessment: it is a statement about your device and your design, not about a component."
+      ]
+    },
+    {
+      "id": "fda.vuln.kev-designed-out",
+      "measure": "kev-designed-out",
+      "status": "NEEDS-HUMAN-INPUT",
+      "requirementSummary": "Vulnerabilities in CISA's Known Exploited Vulnerabilities Catalog are designed out of the device, as they are already being exploited.",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section V.A.2, p. 14",
+      "evidence": [
+        "1 finding matched the bundled KEV catalogue (0 confirmed, 1 possible). The guidance says vulnerabilities in that catalogue should be designed OUT of the device, not mitigated in place.",
+        "Whether a vulnerability has been designed out is a fact about your device that this tool cannot observe.",
+        "Work through the findings and record, for each, whether the affected component was removed, replaced or updated."
+      ]
+    },
+    {
+      "id": "fda.cyber-device.524b",
+      "measure": "cyber-device-determination",
+      "status": "NEEDS-HUMAN-INPUT",
+      "requirementSummary": "Whether this device is a \"cyber device\" under section 524B of the FD&C Act, for which an SBOM is a statutory requirement rather than a recommendation.",
+      "citation": "FDA premarket cybersecurity guidance, February 3, 2026, section VII.C.3, p. 34, citing section 524B(b)(3) of the FD&C Act",
+      "evidence": [
+        "Whether your device is a \"cyber device\" under section 524B of the FD&C Act decides whether an SBOM is a statutory requirement or a recommendation.",
+        "That determination depends on the device, its software, its connectivity and its cybersecurity vulnerabilities. It is yours to make, with the guidance's section VII.B, and nothing here makes it for you."
+      ]
+    }
+  ],
+  "warnings": [
+    "3 of 4 components have no support level or end-of-support date. FDA asks for both for every software component in the SBOM, so each one is either declared in ceproof.config.json (fda.componentSupport) or carried into the submission with a justification for why it cannot be supplied. Each row states why it is unresolved."
+  ],
+  "limits": [
+    "This screen covers the CISA Known Exploited Vulnerabilities Catalog only. FDA asks for ALL known vulnerabilities associated with the device and its software components; vulnerabilities that are not in the KEV catalogue are not searched for here and must be identified by other means.",
+    "The KEV catalogue identifies vulnerabilities by vendor and product name and carries no version information, so a match against it alone cannot establish that the specific version in this device is affected. Such rows are reported as \"possible\".",
+    "A \"confirmed\" row means an ecosystem advisory (npm or PyPI, via OSV) names this exact package and the component version falls inside an affected range. No equivalent version-precise data is bundled for C/C++ or other non-npm/PyPI components, so those components can never reach \"confirmed\" in this version.",
+    "The safety and security risk assessment of each vulnerability, and the risk controls applied, are the manufacturer’s to provide. This screen identifies candidates and records how each was found; it does not assess them."
+  ],
+  "disclaimer": "Informational — not legal advice."
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:4f6c1d0e-9a2b-4c3d-8e5f-6a7b8c9d0e1f",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-10-20T09:14:02Z",
+    "tools": {
+      "components": [
+        { "type": "application", "author": "anchore", "name": "syft", "version": "1.18.1" }
+      ]
+    },
+    "component": {
+      "bom-ref": "device-image",
+      "type": "firmware",
+      "name": "acme-infusion-pump-firmware",
+      "version": "4.2.1"
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:deb/debian/openssl@3.0.11-1~deb12u2",
+      "type": "library",
+      "publisher": "Debian OpenSSL Team",
+      "name": "openssl",
+      "version": "3.0.11-1~deb12u2",
+      "cpe": "cpe:2.3:a:openssl:openssl:3.0.11:*:*:*:*:*:*:*",
+      "purl": "pkg:deb/debian/openssl@3.0.11-1~deb12u2?arch=arm64&distro=debian-12",
+      "licenses": [{ "license": { "id": "Apache-2.0" } }],
+      "hashes": [
+        { "alg": "SHA-256", "content": "3f2d1d4f0c9b8a7e6d5c4b3a29180f7e6d5c4b3a29180f7e6d5c4b3a29180f7e" }
+      ],
+      "properties": [
+        { "name": "syft:package:foundBy", "value": "dpkg-db-cataloger" }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/debian/zlib1g@1.2.13",
+      "type": "library",
+      "name": "zlib1g",
+      "version": "1.2.13.dfsg-1",
+      "purl": "pkg:deb/debian/zlib1g@1.2.13.dfsg-1?arch=arm64",
+      "licenses": [{ "license": { "name": "Zlib-like (vendor modified)" } }]
+    },
+    {
+      "bom-ref": "pkg:generic/busybox@1.36.1",
+      "type": "application",
+      "supplier": { "name": "BusyBox Project" },
+      "name": "busybox",
+      "version": "1.36.1",
+      "purl": "pkg:generic/busybox@1.36.1",
+      "licenses": [{ "expression": "GPL-2.0-only AND bzip2-1.0.6" }]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "device-image",
+      "dependsOn": ["pkg:deb/debian/openssl@3.0.11-1~deb12u2", "pkg:generic/busybox@1.36.1"]
+    },
+    {
+      "ref": "pkg:deb/debian/openssl@3.0.11-1~deb12u2",
+      "dependsOn": ["pkg:deb/debian/zlib1g@1.2.13"]
+    },
+    { "ref": "pkg:deb/debian/zlib1g@1.2.13", "dependsOn": [] },
+    { "ref": "pkg:generic/busybox@1.36.1" }
+  ]
+}

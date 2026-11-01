@@ -47,7 +47,7 @@ if [ -z "$KEY" ]; then
 fi
 
 PROJECT_PATH="${INPUT_PATH:-.}"
-VERSION="${INPUT_VERSION:-0.3.5}"
+VERSION="${INPUT_VERSION:-0.4.0}"
 FORMATS="${INPUT_REPORT_FORMATS:-annex7,annex7-pdf,doc,doc-pdf,sbom-cyclonedx,sbom-spdx}"
 REPORT_DIR="${INPUT_REPORT_OUT:-}"
 [ -n "$REPORT_DIR" ] || REPORT_DIR="${RUNNER_TEMP:-/tmp}/ceproof-full-report"
@@ -82,7 +82,11 @@ generated. Nothing was written. Check that:
     (a secret that is not set arrives as an empty string, and an empty string
     means "free scan only" — you would not be seeing this message);
   * you pasted the whole key from the purchase email, with no stray newline;
-  * the key is a ceproof key, not a licenseproof one.
+  * the key is a ceproof key, not a licenseproof one;
+  * the key's tier covers the formats in `report-formats`. An FDA-tier key does
+    NOT unlock the Annex VII pack, and the CRA tiers do not unlock the FDA pack.
+    ceproof's own message above says which tier it is and what that tier
+    unlocks, and it is the accurate one — this list is the general case.
 Buy or re-send a key at https://ceproof.dev
 The free scan above is unaffected and its result still stands.
 MSG

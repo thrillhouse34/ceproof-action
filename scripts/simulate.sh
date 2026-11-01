@@ -10,6 +10,19 @@
 # from npm; later runs hit the npx cache). The only thing it cannot cover is the
 # actions/upload-artifact step, which has no local equivalent.
 #
+# WHILE THE PINNED VERSION IS UNPUBLISHED — which is the state the FDA-mode
+# commit lands in, because the action is pinned to 0.4.0 before 0.4.0 goes to
+# npm — cases 1, 2, 5 and 6 cannot run: `npx -y ceproof@0.4.0` fails with
+# ETARGET and there is nothing this script can do about that. Run them against
+# the last published release instead:
+#
+#   INPUT_VERSION=0.3.5 ./scripts/simulate.sh
+#
+# and run it plain, with no override, the moment the pinned version is on npm.
+# A plain run that reports ETARGET is the pin being ahead of npm, not a bug in
+# the action; anything else red is real. Cases 12-17 (FDA) use a stub CLI and
+# pass either way.
+#
 # Prefers `act` when it is installed, since that runs the real action.yml.
 set -uo pipefail
 
@@ -336,6 +349,152 @@ check "exit code" "$?" "2"
 if grep -q "no license key" "$RUN_DIR/stderr.txt"; then ok "stderr says the key was empty or whitespace"; else fail "stderr does not explain the empty key"; fi
 if grep -q "^::add-mask::" "$RUN_DIR/stdout.txt"; then fail "masked a whitespace-only string"; else ok "nothing masked"; fi
 if [ -n "$(ls -A "$RUN_DIR/out" 2>/dev/null)" ]; then fail "artifacts written for a whitespace-only key"; else ok "nothing written"; fi
+
+# ── cases 12-17: the FDA profile ──────────────────────────────────────────────
+#
+# These run against a STUB ceproof, not the real one, and the reason is dated:
+# the FDA profile first exists in ceproof 0.4.0, which is not published yet, so
+# `npx -y ceproof@0.4.0` cannot resolve. What the stub makes testable is this
+# repo's half — the flags run.sh builds, the per-profile --fail-on default, the
+# guards, and summary.js's rendering of a real FDA report. What it cannot prove
+# is that the CLI accepts those flags; that was checked by running the 0.4.0 CLI
+# directly, and the real end-to-end belongs in the post-publish E2E.
+#
+# fixtures/fda-report.json is REAL 0.4.0 output (`scan --profile fda --sbom
+# fixtures/sample-sbom.cdx.json --format json`), not a hand-written shape. The
+# day it is hand-edited this stops being a test of anything.
+#
+# DELETE THE STUB AND SWITCH THESE TO THE REAL CLI once 0.4.0 is on npm.
+FDA_BIN="$TMP/fda-bin"
+mkdir -p "$FDA_BIN"
+cat > "$FDA_BIN/npx" <<'FDASTUB'
+#!/usr/bin/env bash
+# Records the args it was handed, then serves the committed real FDA report.
+printf '%s\n' "$@" > "$FAKE_ARGS_FILE"
+cat "$FDA_FIXTURE"
+exit "${FAKE_EXIT:-0}"
+FDASTUB
+chmod +x "$FDA_BIN/npx"
+export FDA_FIXTURE="$ROOT/fixtures/fda-report.json"
+
+fda_run() {   # fda_run <label> <run-dir-name> [extra env assignments via caller]
+  RUN_DIR="$TMP/$1"
+  mkdir -p "$RUN_DIR"
+  export GITHUB_STEP_SUMMARY="$RUN_DIR/step-summary.md"
+  export GITHUB_OUTPUT="$RUN_DIR/outputs.txt"
+  export RUNNER_TEMP="$RUN_DIR"
+  export FAKE_ARGS_FILE="$RUN_DIR/args.txt"
+  : > "$GITHUB_STEP_SUMMARY"
+  : > "$GITHUB_OUTPUT"
+  : > "$FAKE_ARGS_FILE"
+}
+# <flag> <value>: true only when VALUE is the line immediately after FLAG.
+# Both halves matter — "--fail-on and never both appear somewhere" would pass on
+# `--fail-on human-required --sbom never`, which is not the same statement. The
+# `--` before "$1" is not optional: without it grep reads --profile as its own
+# option and reports a usage error as a test failure.
+args_pair() {
+  awk -v flag="$1" -v val="$2" '
+    prev == flag && $0 == val { found = 1 }
+    { prev = $0 }
+    END { exit found ? 0 : 1 }
+  ' "$FAKE_ARGS_FILE"
+}
+
+echo
+echo "== case 12: fda: true, nothing else set (expect --profile fda, --fail-on never, exit 0) =="
+unset INPUT_CONFIG INPUT_FAIL_ON INPUT_FDA_SBOM
+fda_run fda-default
+PATH="$FDA_BIN:$PATH" INPUT_PATH="fixtures/sample-repo" INPUT_FDA="true" \
+  bash "$ROOT/scripts/run.sh" > "$RUN_DIR/stdout.txt" 2> "$RUN_DIR/stderr.txt"
+RC=$?
+sed 's/^/    | /' "$RUN_DIR/stderr.txt"
+check "exit code" "$RC" "0"
+if args_pair "--profile" "fda"; then ok "--profile fda passed to the CLI"; else fail "--profile fda missing from $(tr '\n' ' ' < "$FAKE_ARGS_FILE")"; fi
+if args_pair "--fail-on" "never"; then ok "--fail-on defaulted to never (report-only)"; else fail "--fail-on is not never: $(tr '\n' ' ' < "$FAKE_ARGS_FILE")"; fi
+check "outcome output" "$(get outcome)" "pass"
+check "total-items output" "$(get total-items)" "13"
+check "config-present output" "$(get config-present)" "unknown"
+check "config-valid output" "$(get config-valid)" "unknown"
+DERIVED="$(get derived-count)"; PARTIAL="$(get partial-count)"; HUMAN="$(get needs-human-input-count)"
+check "derived + partial + needs-human = 13" "$((DERIVED + PARTIAL + HUMAN))" "13"
+if grep -q '^## ✅' "$GITHUB_STEP_SUMMARY"; then ok "job summary marked passed"; else fail "job summary not marked passed"; fi
+for want in "FDA premarket SBOM" "13 FDA content items" "report-only by default" "Still open" "Components"; do
+  if grep -qF "$want" "$GITHUB_STEP_SUMMARY"; then ok "job summary mentions '$want'"; else fail "job summary is missing '$want'"; fi
+done
+# The FDA profile must NOT be sold the CRA product, and must not carry the CRA disclaimer.
+if grep -qF 'Annex VII technical documentation pack' "$GITHUB_STEP_SUMMARY"; then fail "the CRA upsell leaked into an FDA run"; else ok "no CRA upsell on an FDA run"; fi
+if grep -qF 'not a Declaration of Conformity' "$GITHUB_STEP_SUMMARY"; then fail "the CRA disclaimer leaked into an FDA run"; else ok "no CRA disclaimer on an FDA run"; fi
+if grep -qF 'not reviewed or endorsed by FDA or by CISA' "$GITHUB_STEP_SUMMARY"; then ok "the FDA disclaimer is present"; else fail "the FDA disclaimer is missing"; fi
+if grep -qF 'ceproof.dev/fda' "$GITHUB_STEP_SUMMARY"; then ok "the FDA upsell links the FDA page"; else fail "the FDA upsell has no /fda link"; fi
+# These are the wording bans ceproof's own tests/fda/forbiddenClaims.test.ts
+# enforces on the artifacts. The job summary is a surface too.
+for banned in "FDA-approved" "FDA approved" "submission-ready" "compliant"; do
+  if grep -qiF "$banned" "$GITHUB_STEP_SUMMARY"; then fail "the job summary says '$banned'"; else ok "no '$banned' claim"; fi
+done
+
+echo
+echo "== case 13: fda: true with an explicit fail-on (expect failing CI to be opt-in and to work) =="
+fda_run fda-optin
+PATH="$FDA_BIN:$PATH" INPUT_PATH="fixtures/sample-repo" INPUT_FDA="true" INPUT_FAIL_ON="human-required" \
+  bash "$ROOT/scripts/run.sh" > /dev/null 2> "$RUN_DIR/stderr.txt"
+# The stub always exits 0, so this asserts what run.sh SENDS, which is the half
+# this repo owns. The CLI's own arithmetic is covered by ceproof's test suite.
+if args_pair "--fail-on" "human-required"; then ok "an explicit fail-on overrides the per-profile default"; else fail "explicit fail-on was dropped: $(tr '\n' ' ' < "$FAKE_ARGS_FILE")"; fi
+
+echo
+echo "== case 14: fda off (the default) still sends no --profile and --fail-on human-required =="
+fda_run fda-off
+unset INPUT_FAIL_ON
+PATH="$FDA_BIN:$PATH" INPUT_PATH="fixtures/sample-repo" \
+  bash "$ROOT/scripts/run.sh" > /dev/null 2>&1
+if grep -qxF -- '--profile' "$FAKE_ARGS_FILE"; then fail "--profile was sent on a CRA run"; else ok "no --profile on a CRA run, exactly as before"; fi
+if args_pair "--fail-on" "human-required"; then ok "CRA still defaults to --fail-on human-required"; else fail "the CRA default moved: $(tr '\n' ' ' < "$FAKE_ARGS_FILE")"; fi
+
+echo
+echo "== case 15: fda-sbom becomes one --sbom per path, comma- or newline-separated =="
+fda_run fda-sbom
+PATH="$FDA_BIN:$PATH" INPUT_PATH="fixtures/sample-repo" INPUT_FDA="true" \
+INPUT_FDA_SBOM="fixtures/sample-sbom.cdx.json
+  fixtures/sample-sbom.cdx.json" \
+  bash "$ROOT/scripts/run.sh" > /dev/null 2> "$RUN_DIR/stderr.txt"
+RC=$?
+sed 's/^/    | /' "$RUN_DIR/stderr.txt"
+check "exit code" "$RC" "0"
+check "--sbom passed twice" "$(grep -cxF -- '--sbom' "$FAKE_ARGS_FILE")" "2"
+check "leading whitespace trimmed off the second path" "$(grep -cxF 'fixtures/sample-sbom.cdx.json' "$FAKE_ARGS_FILE")" "2"
+fda_run fda-sbom-commas
+PATH="$FDA_BIN:$PATH" INPUT_PATH="fixtures/sample-repo" INPUT_FDA="true" \
+INPUT_FDA_SBOM="fixtures/sample-sbom.cdx.json,fixtures/sample-sbom.cdx.json" \
+  bash "$ROOT/scripts/run.sh" > /dev/null 2>&1
+check "comma-separated also gives two --sbom" "$(grep -cxF -- '--sbom' "$FAKE_ARGS_FILE")" "2"
+
+echo
+echo "== case 16: an fda-sbom path that is not there is exit 2, not a silent empty scan =="
+fda_run fda-sbom-missing
+PATH="$FDA_BIN:$PATH" INPUT_PATH="fixtures/sample-repo" INPUT_FDA="true" \
+INPUT_FDA_SBOM="fixtures/no-such-sbom.json" \
+  bash "$ROOT/scripts/run.sh" > /dev/null 2> "$RUN_DIR/stderr.txt"
+check "exit code" "$?" "2"
+if grep -q "SBOM file not found" "$RUN_DIR/stderr.txt"; then ok "stderr names the missing SBOM"; else fail "stderr does not explain the missing SBOM"; fi
+if [ -s "$FAKE_ARGS_FILE" ]; then fail "the CLI ran despite the missing SBOM"; else ok "the CLI was never reached"; fi
+
+echo
+echo "== case 17: fda-sbom with fda off, a whitespace-only fda-sbom, and a bad fda value are all exit 2 =="
+fda_run fda-guards
+PATH="$FDA_BIN:$PATH" INPUT_PATH="fixtures/sample-repo" INPUT_FDA_SBOM="fixtures/sample-sbom.cdx.json" \
+  bash "$ROOT/scripts/run.sh" > /dev/null 2> "$RUN_DIR/stderr.txt"
+check "fda-sbom with fda off" "$?" "2"
+if grep -q "only read when fda: true" "$RUN_DIR/stderr.txt"; then ok "stderr says why"; else fail "stderr does not explain it"; fi
+PATH="$FDA_BIN:$PATH" INPUT_PATH="fixtures/sample-repo" INPUT_FDA="true" INPUT_FDA_SBOM="  , ,  " \
+  bash "$ROOT/scripts/run.sh" > /dev/null 2> "$RUN_DIR/stderr2.txt"
+check "whitespace-only fda-sbom" "$?" "2"
+if grep -q "held no path" "$RUN_DIR/stderr2.txt"; then ok "stderr says the input held no path"; else fail "stderr does not explain the empty fda-sbom"; fi
+PATH="$FDA_BIN:$PATH" INPUT_PATH="fixtures/sample-repo" INPUT_FDA="yes" \
+  bash "$ROOT/scripts/run.sh" > /dev/null 2> "$RUN_DIR/stderr3.txt"
+check "fda: yes (not a boolean)" "$?" "2"
+if grep -q "fda must be true or false" "$RUN_DIR/stderr3.txt"; then ok "stderr names the valid values"; else fail "stderr does not name the valid values"; fi
+unset INPUT_FDA INPUT_FDA_SBOM
 
 echo
 if [ "$FAILURES" -eq 0 ]; then
